@@ -1,14 +1,19 @@
 import pandas as pd
+import numpy as np
 from numpy import mean
 from numpy import std
 import keras as ks
 import sklearn as skl
 import tensorflow as tf
 from sklearn.linear_model import  LinearRegression as LR
-from sklearn.model_selection import train_test_split, RepeatedStratifiedKFold, cross_val_score
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split, RepeatedStratifiedKFold, cross_val_score, KFold
 from sklearn.linear_model import  LogisticRegression as LogR
 from sklearn.preprocessing import LabelBinarizer, OneHotEncoder
 from keras.models import Sequential
+from keras.wrappers.scikit_learn import KerasRegressor
+from keras.metrics import RootMeanSquaredError
+from keras.metrics import MeanSquaredError
 from keras.layers import Dense
 
 
@@ -26,54 +31,36 @@ df = df.astype({stuff[0]: 'float32'})
 # print(df)
 
 X = df[stuff]
-# print(X)
-# print(df["FIRE_SIZE_CLASS"].unique())
-df["FIRE_SIZE_CLASS"] = le.fit_transform(df["FIRE_SIZE_CLASS"])
+# df["FIRE_SIZE_CLASS"] = le.fit_transform(df["FIRE_SIZE_CLASS"])
 # y = LabelBinarizer().fit_transform(df["FIRE_SIZE_CLASS"])
 
-y = df["FIRE_SIZE_CLASS"]
+y = df["FIRE_SIZE"]
 
 # print(y)
 
+def root_mean_squared_error(y_true, y_pred):
+    return np.sqrt(np.mean(np.square(y_true - y_pred)))
 
-x_train, x_test, y_train, y_test = train_test_split(X,y,test_size=0.2)
+def root_mean_squared_percent_error(y_true, y_pred):
+    return (np.sqrt(np.mean(np.square((y_true - y_pred)/y_true)))) * 100
 
-#test to get this working
+def ann():
+    model = Sequential()
+    model.add(Dense(64, input_dim=14,kernel_initializer="normal", activation='relu'))
+    model.add(Dense(32, kernel_initializer='normal', activation='tanh'))
+    model.add(Dense(16, kernel_initializer='normal', activation='tanh'))
+    model.compile(loss=root_mean_squared_percent_error, optimizer='adam', metrics=['mse','mae',''])
+    return model
 
-model = Sequential()
-model.add(ks.Input(shape=(14,)))
-model.add(Dense(64, activation='relu'))
-model.add(Dense(32, activation='relu'))
-model.add(Dense(16,  activation='tanh'))
+X_train, X_test, Y_train, Y_test = train_test_split(X,y, test_size=0.33)
 
-model.compile(loss='binary_crossentropy', optimizer='Nadam', metrics=['accuracy'])
-model.fit(x_train,y_train, epochs=50, batch_size=10)
-print("working")
-_,accuracy = model.evaluate(x_test,y_test)
-print("working")
-
-print('Accuracy: %.2f' %(accuracy*100))
-
-
-# y_train = LabelBinarizer().fit_transform(y_train)
-# y_test = LabelBinarizer().fit_transform(y_test)
-# linearRegression = LR()
-#
-#
-# linearRegression.fit(x_train,y_train)
-# predictions = linearRegression.predict(x_test)
-# score_train = linearRegression.score(x_train,y_train)
-# score_test = linearRegression.score(x_test,y_test)
-#
-# print(score_test)
-# print(score_train)
-#
-# #  solvers: lbfgs, saga, sag
-# logisticregresion = LogR(multi_class='multinomial', solver='newton-cg')
-# cv = RepeatedStratifiedKFold(n_splits=10, n_repeats=3, random_state=1)
-# n_scores = cross_val_score(logisticregresion, x_test, y_test, scoring='accuracy', cv=cv, n_jobs=-1)
-# print('Mean Accuracy: %.3f (%.3f)' % (mean(n_scores)))
-#
+estimator = KerasRegressor(build_fn=ann, epochs=25, batch_size=1, verbose=1)
+kfold = KFold(n_splits = 2)
+results = cross_val_score(estimator, X_test,Y_test, cv=kfold )
+print("Baseline: %.2f (%.2f) MSE" % (results.mean(), results.std()))
+estimator.fit(X_train,Y_train)
+prediction = estimator.predict(X_test)
+print(accuracy_score(Y_test, prediction))
 
 
 
